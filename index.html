@@ -1,19 +1,25 @@
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>即時線上投票系統</title>
+    <!-- Tailwind CSS (UI 樣式) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js (頁面邏輯與狀態管理) -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Chart.js (即時圖表) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome (圖示) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen pb-12" x-data="pollApp()">
 
+    <!-- 頂部導覽列 -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
             <div class="flex items-center space-x-2">
-                <i class="fa-solid me-2 fa-check-to-slot text-indigo-600 text-2xl"></i>
+                <i class="fa-solid fa-check-to-slot text-indigo-600 text-2xl"></i>
                 <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">VotePulse 即時投票</h1>
             </div>
             <button @click="resetToCreate()" class="text-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-medium px-3 py-1.5 rounded-lg transition-colors">
@@ -24,7 +30,14 @@
 
     <main class="max-w-3xl mx-auto px-4 pt-8">
 
-        <div x-show="view === 'create'" x-transition class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+        <!-- 載入中狀態 -->
+        <div x-show="loading" class="text-center py-12">
+            <i class="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-600 mb-3"></i>
+            <p class="text-slate-500 text-sm">投票資料載入中...</p>
+        </div>
+
+        <!-- 1. 建立投票模式 -->
+        <div x-show="!loading && view === 'create'" x-transition class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
             <h2 class="text-2xl font-bold mb-6 text-slate-900">建立新投票</h2>
             
             <form @submit.prevent="createPoll()">
@@ -59,14 +72,15 @@
                            class="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-600">
                 </div>
 
-                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all">
-                    發起投票並生成連結
+                <button type="submit" :disabled="submitting" class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex justify-center items-center gap-2">
+                    <i x-show="submitting" class="fa-solid fa-spinner fa-spin"></i>
+                    <span x-text="submitting ? '建立中...' : '發起投票並生成連結'"></span>
                 </button>
             </form>
         </div>
 
-        <div x-show="view === 'vote'" x-transition class="space-y-6">
-            
+        <!-- 2. 進行投票 / 查看結果模式 -->
+        <div x-show="!loading && view === 'vote'" x-transition class="space-y-6">
             <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200" x-show="!isExpired">
@@ -80,16 +94,18 @@
 
                 <h2 class="text-2xl font-bold text-slate-900 mb-6" x-text="poll.title"></h2>
 
+                <!-- 尚未投票區塊 -->
                 <div x-show="!hasVoted && !isExpired" class="space-y-3">
                     <template x-for="(option, index) in poll.options" :key="index">
-                        <button @click="submitVote(index)" 
-                                class="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all flex justify-between items-center group">
+                        <button @click="submitVote(index)" :disabled="submitting"
+                                class="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all flex justify-between items-center group disabled:opacity-50">
                             <span class="font-medium text-slate-700 group-hover:text-indigo-600" x-text="option"></span>
                             <i class="fa-regular fa-circle text-slate-300 group-hover:text-indigo-500 transition-colors"></i>
                         </button>
                     </template>
                 </div>
 
+                <!-- 已投票或過期提示 -->
                 <div x-show="hasVoted" class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-indigo-700 text-sm mb-6 flex items-center gap-2">
                     <i class="fa-solid fa-circle-check text-indigo-600"></i>
                     <span>您已完成投票！以下為即時統計結果。</span>
@@ -99,9 +115,9 @@
                     <span>此投票已截止，僅提供查看歷史結果。</span>
                 </div>
 
+                <!-- 即時圖表 -->
                 <div x-show="hasVoted || isExpired" class="mt-6 pt-6 border-t border-slate-100">
                     <h3 class="text-lg font-semibold text-slate-800 mb-4">投票結果統計</h3>
-                    
                     <div class="relative h-64 mb-6">
                         <canvas id="pollChart"></canvas>
                     </div>
@@ -131,115 +147,127 @@
     </main>
 
     <script>
+        // 免費公開 API Endpoint 用於雲端跨裝置資料同步 (使用 npoint.io 雲端 JSON 服務)
+        const API_BASE = 'https://api.npoint.io/';
+
         function pollApp() {
             return {
-                view: 'create', // 'create' 或 'vote'
+                view: 'create',
+                loading: false,
+                submitting: false,
                 hasVoted: false,
                 isExpired: false,
                 chartInstance: null,
-                newPoll: {
-                    title: '',
-                    options: ['', ''],
-                    deadline: ''
-                },
-                poll: {
-                    id: '',
-                    title: '',
-                    options: [],
-                    votes: [],
-                    deadline: ''
-                },
+                newPoll: { title: '', options: ['', ''], deadline: '' },
+                poll: { id: '', title: '', options: [], votes: [], deadline: '' },
 
                 init() {
-                    // 解析網址是否帶有投票 ID
                     const urlParams = new URLSearchParams(window.location.search);
                     const pollId = urlParams.get('pollId');
 
                     if (pollId) {
-                        this.loadPoll(pollId);
+                        this.fetchPoll(pollId);
                     }
                 },
 
-                // 新增與刪除選項
-                addOption() {
-                    this.newPoll.options.push('');
-                },
-                removeOption(index) {
-                    this.newPoll.options.splice(index, 1);
-                },
+                addOption() { this.newPoll.options.push(''); },
+                removeOption(index) { this.newPoll.options.splice(index, 1); },
 
-                // 建立投票
-                createPoll() {
-                    const pollId = 'poll_' + Date.now();
+                // 建立投票並將資料同步至線上 API
+                async createPoll() {
+                    this.submitting = true;
                     const pollData = {
-                        id: pollId,
                         title: this.newPoll.title,
                         options: this.newPoll.options.filter(opt => opt.trim() !== ''),
-                        votes: new Array(this.newPoll.options.length).fill(0),
+                        votes: new Array(this.newPoll.options.filter(opt => opt.trim() !== '').length).fill(0),
                         deadline: this.newPoll.deadline
                     };
 
-                    // 儲存至 LocalStorage
-                    localStorage.setItem(pollId, JSON.stringify(pollData));
-
-                    // 切換至投票網址
-                    const newUrl = window.location.origin + window.location.pathname + '?pollId=' + pollId;
-                    window.history.pushState({ path: newUrl }, '', newUrl);
-
-                    this.loadPoll(pollId);
-                },
-
-                // 載入投票資料
-                loadPoll(pollId) {
-                    const data = localStorage.getItem(pollId);
-                    if (!data) {
-                        alert('找不到該投票資料！');
-                        this.view = 'create';
-                        return;
-                    }
-
-                    this.poll = JSON.parse(data);
-                    this.view = 'vote';
-
-                    // 檢查防重覆投票 (基於 LocalStorage 紀錄)
-                    const votedHistory = JSON.parse(localStorage.getItem('voted_polls') || '{}');
-                    this.hasVoted = !!votedHistory[pollId];
-
-                    // 檢查是否已截止
-                    if (this.poll.deadline) {
-                        this.isExpired = new Date().getTime() > new Date(this.poll.deadline).getTime();
-                    }
-
-                    // 若已投票或已過期，自動渲染圖表
-                    if (this.hasVoted || this.isExpired) {
-                        this.$nextTick(() => {
-                            this.renderChart();
+                    try {
+                        const res = await fetch(API_BASE, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(pollData)
                         });
+                        const data = await res.json();
+                        const pollId = data.id;
+
+                        const newUrl = window.location.origin + window.location.pathname + '?pollId=' + pollId;
+                        window.history.pushState({ path: newUrl }, '', newUrl);
+
+                        await this.fetchPoll(pollId);
+                    } catch (err) {
+                        alert('建立投票失敗，請檢查網路連線！');
+                    } finally {
+                        this.submitting = false;
                     }
                 },
 
-                // 進行投票
-                submitVote(optionIndex) {
-                    if (this.hasVoted || this.isExpired) return;
+                // 從雲端 API 讀取跨裝置投票資料
+                async fetchPoll(pollId) {
+                    this.loading = true;
+                    try {
+                        const res = await fetch(API_BASE + pollId);
+                        if (!res.ok) throw new Error();
+                        
+                        this.poll = await res.json();
+                        this.poll.id = pollId;
+                        this.view = 'vote';
 
-                    // 更新數據
-                    this.poll.votes[optionIndex]++;
-                    localStorage.setItem(this.poll.id, JSON.stringify(this.poll));
+                        // 防重複投票：手機/裝置端的 LocalStorage 紀錄
+                        const votedHistory = JSON.parse(localStorage.getItem('voted_polls') || '{}');
+                        this.hasVoted = !!votedHistory[pollId];
 
-                    // 標記本機設備已投票
-                    const votedHistory = JSON.parse(localStorage.getItem('voted_polls') || '{}');
-                    votedHistory[this.poll.id] = true;
-                    localStorage.setItem('voted_polls', JSON.stringify(votedHistory));
+                        if (this.poll.deadline) {
+                            this.isExpired = new Date().getTime() > new Date(this.poll.deadline).getTime();
+                        }
 
-                    this.hasVoted = true;
-
-                    // 繪製圖表
-                    this.$nextTick(() => {
-                        this.renderChart();
-                    });
+                        if (this.hasVoted || this.isExpired) {
+                            this.$nextTick(() => this.renderChart());
+                        }
+                    } catch (err) {
+                        alert('找不到該投票資料或連結已失效！');
+                        this.resetToCreate();
+                    } finally {
+                        this.loading = false;
+                    }
                 },
 
-                // 計算總票數與百分比
+                // 進行投票並實時更新雲端資料
+                async submitVote(optionIndex) {
+                    if (this.hasVoted || this.isExpired || this.submitting) return;
+
+                    this.submitting = true;
+                    this.poll.votes[optionIndex]++;
+
+                    try {
+                        // 更新至線上 API
+                        await fetch(API_BASE + this.poll.id, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                title: this.poll.title,
+                                options: this.poll.options,
+                                votes: this.poll.votes,
+                                deadline: this.poll.deadline
+                            })
+                        });
+
+                        // 標記該手機/裝置已投票
+                        const votedHistory = JSON.parse(localStorage.getItem('voted_polls') || '{}');
+                        votedHistory[this.poll.id] = true;
+                        localStorage.setItem('voted_polls', JSON.stringify(votedHistory));
+
+                        this.hasVoted = true;
+                        this.$nextTick(() => this.renderChart());
+                    } catch (err) {
+                        alert('投票失敗，請重試！');
+                        this.poll.votes[optionIndex]--; // 復原狀態
+                    } finally {
+                        this.submitting = false;
+                    }
+                },
+
                 get totalVotes() {
                     return this.poll.votes ? this.poll.votes.reduce((a, b) => a + b, 0) : 0;
                 },
@@ -248,12 +276,9 @@
                     return ((votes / this.totalVotes) * 100).toFixed(1);
                 },
 
-                // 渲染 Chart.js 即時長條圖
                 renderChart() {
                     const ctx = document.getElementById('pollChart').getContext('2d');
-                    if (this.chartInstance) {
-                        this.chartInstance.destroy();
-                    }
+                    if (this.chartInstance) this.chartInstance.destroy();
 
                     this.chartInstance = new Chart(ctx, {
                         type: 'bar',
@@ -264,38 +289,27 @@
                                 data: this.poll.votes,
                                 backgroundColor: 'rgba(79, 70, 229, 0.85)',
                                 borderRadius: 8,
-                                borderSkipped: false,
                             }]
                         },
                         options: {
                             responsive: true,
                             maintainAspectRatio: false,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: { precision: 0 }
-                                }
-                            }
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
                         }
                     });
                 },
 
-                // 複製分享連結
                 copyShareLink() {
                     navigator.clipboard.writeText(window.location.href);
-                    alert('投票連結已複製到剪貼簿，可以傳給其他人參與投票囉！');
+                    alert('投票連結已複製，傳給其他人開啟即可直接參與投票！');
                 },
 
-                // 格式化日期
                 formatDeadline(datetimeStr) {
                     if (!datetimeStr) return '';
                     return new Date(datetimeStr).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' });
                 },
 
-                // 重設回建立頁面
                 resetToCreate() {
                     window.history.pushState({}, '', window.location.pathname);
                     this.view = 'create';
@@ -306,3 +320,4 @@
     </script>
 </body>
 </html>
+
